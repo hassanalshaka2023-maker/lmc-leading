@@ -1,0 +1,79 @@
+# Production stack for LMC — backend + Nginx/TLS on a VPS.
+# The database is MongoDB Atlas (managed, external) — set MONGO_URI in .env.production.
+# The frontend is not here: it is built and served by Vercel.
+#
+#   docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: production
+    container_name: lmc-backend
+    restart: always
+    environment:
+      NODE_ENV: production
+      BACKEND_PORT: 3000
+      API_PREFIX: ${API_PREFIX:-api}
+      # Atlas SRV connection string — comes straight from .env.production.
+      MONGO_URI: ${MONGO_URI}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      JWT_ACCESS_TTL: ${JWT_ACCESS_TTL:-15m}
+      JWT_REFRESH_TTL: ${JWT_REFRESH_TTL:-7d}
+      CORS_ORIGIN: ${CORS_ORIGIN}
+      THROTTLE_TTL: ${THROTTLE_TTL:-60}
+      THROTTLE_LIMIT: ${THROTTLE_LIMIT:-120}
+      AUTH_THROTTLE_LIMIT: ${AUTH_THROTTLE_LIMIT:-5}
+      STORAGE_DRIVER: local
+      STORAGE_LOCAL_DIR: /app/uploads
+      STORAGE_PUBLIC_BASE_URL: ${STORAGE_PUBLIC_BASE_URL}
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-5}
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+    volumes:
+      # Uploaded media lives on the VPS disk — Atlas does not store files.
+      - backend_uploads:/app/uploads
+    networks: [lmc]
+    # No `ports:` — only Nginx reaches it, over the internal network.
+    logging: &logging
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: lmc-nginx
+    restart: always
+    depends_on: [backend]
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/nginx:/etc/nginx/conf.d:ro
+      - certbot_webroot:/var/www/certbot
+      - certbot_conf:/etc/letsencrypt:ro
+    networks: [lmc]
+    logging: *logging
+
+  certbot:
+    image: certbot/certbot
+    container_name: lmc-certbot
+    restart: always
+    volumes:
+      - certbot_webroot:/var/www/certbot
+      - certbot_conf:/etc/letsencrypt
+    # Retry renewal twice a day; Let's Encrypt renews only within 30d of expiry.
+    entrypoint: /bin/sh -c 'trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done'
+    logging: *logging
+
+networks:
+  lmc:
+    driver: bridge
+
+volumes:
+  backend_uploads:
+  certbot_webroot:
+  certbot_conf:
