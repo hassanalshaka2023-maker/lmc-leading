@@ -1,0 +1,6 @@
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.svg text
+*-lock.json linguist-generated=true -diff
+package-lock.json linguist-generated=true -diff

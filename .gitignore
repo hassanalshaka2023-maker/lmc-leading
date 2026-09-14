@@ -1,0 +1,42 @@
+# dependencies
+node_modules/
+*/node_modules/
+
+# build output
+dist/
+build/
+frontend/dist/
+backend/dist/
+
+# env
+.env
+.env.*
+!.env.example
+!.env.production.example
+
+# uploads (local storage in dev)
+backend/uploads/
+uploads/
+
+# local dev database (mongodb-memory-server)
+backend/.mongo-data/
+.mongo-data/
+.cache/mongodb-binaries/
+
+# logs
+*.log
+npm-debug.log*
+logs/
+
+# editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# test / coverage
+coverage/
+
+# docker volumes
+.docker-data/
