@@ -1,0 +1,51 @@
+# Render Blueprint — backend (NestJS) on the free plan.
+# Render dashboard -> New -> Blueprint -> pick this repo.
+# Values marked `sync: false` are asked for in the dashboard on first deploy.
+services:
+  - type: web
+    name: lmc-backend
+    runtime: docker
+    plan: free
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: BACKEND_PORT
+        value: "10000"
+      - key: API_PREFIX
+        value: api
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: STORAGE_DRIVER
+        value: cloudinary
+      - key: MAX_UPLOAD_MB
+        value: "5"
+      # Per visitor IP, per 60s. One home-page load is ~12 API calls.
+      - key: THROTTLE_TTL
+        value: "60"
+      - key: THROTTLE_LIMIT
+        value: "120"
+      # One proxy hop (Render's load balancer).
+      - key: TRUST_PROXY
+        value: "1"
+      # MongoDB Atlas SRV string, including /lmc_db before the "?"
+      - key: MONGO_URI
+        sync: false
+      # Frontend URL(s), comma-separated, no trailing slash
+      - key: CORS_ORIGIN
+        sync: false
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: SEED_ADMIN_EMAIL
+        sync: false
+      - key: SEED_ADMIN_PASSWORD
+        sync: false
