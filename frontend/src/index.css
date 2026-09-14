@@ -1,0 +1,236 @@
+@import 'tailwindcss';
+
+/* LMC theme: teal #0F5270, orange #F05223 */
+@theme {
+  /* ---- Brand: teal (primary — deep, for headings/nav/dark surfaces) ---- */
+  --color-teal-50: #eaf2f6;
+  --color-teal-100: #cfe1ea;
+  --color-teal-200: #a0c3d5;
+  --color-teal-300: #6fa3bd;
+  --color-teal-400: #3f7f9f;
+  --color-teal-500: #1a6486;
+  --color-teal-600: #0f5270; /* brand core */
+  --color-teal-700: #0c435d;
+  --color-teal-800: #0a3547;
+  --color-teal-900: #072632;
+
+  /* ---- Brand: orange (accent / CTA — the logo's own orange) ---- */
+  --color-orange-50: #fef0eb;
+  --color-orange-100: #fbd8cc;
+  --color-orange-200: #f7b199;
+  --color-orange-300: #f38a66;
+  --color-orange-400: #f26a3f;
+  --color-orange-500: #f05223; /* accent core */
+  --color-orange-600: #d5401a;
+  --color-orange-700: #ad3315;
+  --color-orange-800: #822610;
+  --color-orange-900: #571a0b;
+
+  /* ---- Neutral (light gray backgrounds + ink) ---- */
+  --color-ink: #0f1b22;
+  --color-ink-soft: #3d4a52;
+  --color-muted: #6b7780;
+  --color-line: #e2e8ec;
+  --color-surface: #ffffff;
+  --color-surface-2: #f4f7f9;
+  --color-surface-3: #eaeff2;
+  /* Page background (cards and inputs use --color-surface) */
+  --color-canvas: #f7fafb;
+
+  /* Validation errors */
+  --color-danger: #d64545;
+
+  /* ---- Semantic aliases ---- */
+  --color-brand: var(--color-teal-600);
+  --color-brand-strong: var(--color-teal-700);
+  --color-accent: var(--color-orange-500);
+  --color-accent-strong: var(--color-orange-600);
+
+  /* ---- Typography ---- */
+  --font-sans: 'Plus Jakarta Sans', 'Cairo', ui-sans-serif, system-ui,
+    'Segoe UI', Roboto, sans-serif;
+  --font-arabic: 'Cairo', 'Plus Jakarta Sans', ui-sans-serif, system-ui,
+    sans-serif;
+  --font-heading: 'Plus Jakarta Sans', 'Cairo', ui-sans-serif, system-ui,
+    sans-serif;
+
+  /* ---- Radii (rounded cards per brand) ---- */
+  --radius-card: 1.25rem;
+  --radius-pill: 9999px;
+
+  /* ---- Elevation ---- */
+  --shadow-card: 0 1px 2px rgba(15, 82, 112, 0.04),
+    0 12px 32px -12px rgba(15, 82, 112, 0.18);
+  --shadow-card-lg: 0 2px 4px rgba(15, 82, 112, 0.05),
+    0 24px 48px -20px rgba(15, 82, 112, 0.28);
+}
+
+/* ---- Base ----
+   In @layer base so utilities like text-white can override these. */
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
+  }
+
+  body {
+    margin: 0;
+    min-height: 100svh;
+    background: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Arabic locale: swap font + direction is set on <html dir> by i18n */
+  :lang(ar) {
+    font-family: var(--font-arabic);
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-heading);
+    color: var(--color-teal-700);
+    line-height: 1.15;
+    text-wrap: balance;
+  }
+
+  /* Latin display type reads better a touch tighter; Arabic must never get
+     negative tracking — it breaks letter joining — so this is scoped. */
+  :lang(en) h1,
+  :lang(en) h2,
+  :lang(en) h3 {
+    letter-spacing: -0.015em;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+}
+
+/* Tabular, evenly-spaced figures for stats and numeric badges. */
+.lmc-nums {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+  letter-spacing: 0.01em;
+}
+
+/* ---- Motion (subtle, reduced-motion aware) ---- */
+@keyframes lmc-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.lmc-rise {
+  animation: lmc-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Slow float for decorative dots */
+@keyframes lmc-float {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  50% {
+    transform: translate(6px, -10px);
+  }
+}
+
+.lmc-float {
+  animation: lmc-float 7s ease-in-out infinite;
+}
+
+/* Very slow rotation for the ring motif */
+@keyframes lmc-spin-slow {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.lmc-spin-slow {
+  animation: lmc-spin-slow 90s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lmc-rise,
+  .lmc-float,
+  .lmc-spin-slow {
+    animation: none;
+  }
+  * {
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Decorative soft blobs used behind hero / CTA bands */
+.lmc-blob {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(60px);
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* Dot-grid texture */
+.lmc-dot-grid {
+  background-image: radial-gradient(
+    currentColor 1.4px,
+    transparent 1.4px
+  );
+  background-size: 18px 18px;
+}
+
+/* Orange to teal line next to headings and eyebrows */
+.lmc-rule {
+  display: inline-block;
+  height: 3px;
+  border-radius: 9999px;
+  background: linear-gradient(
+    90deg,
+    var(--color-orange-500),
+    var(--color-teal-600)
+  );
+}
+
+/* Form field baseline — components add spacing/layout */
+.field {
+  width: 100%;
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  border-radius: 0.75rem;
+  padding: 0.7rem 0.9rem;
+  font: inherit;
+  color: var(--color-ink);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.field:focus {
+  outline: none;
+  border-color: var(--color-teal-500);
+  box-shadow: 0 0 0 3px rgba(15, 82, 112, 0.12);
+}
+.field::placeholder {
+  color: var(--color-muted);
+}
