@@ -1,9 +1,34 @@
-# Production stack for LMC — backend + Nginx/TLS on a VPS.
-# The database is MongoDB Atlas (managed, external) — set MONGO_URI in .env.production.
-# The frontend is not here: it is built and served by Vercel.
+# Production stack for LMC — MongoDB, the NestJS API and the built React site,
+# all on one VPS that already runs Nginx for other sites.
+#
+# This stack does NOT bind :80 or :443. It publishes two ports on localhost
+# only; the server's own Nginx terminates TLS and proxies to them
+# (see deploy/nginx/lmc.conf and DEPLOY.md).
 #
 #   docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
 services:
+  mongo:
+    image: mongo:7
+    container_name: lmc-mongo
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+      MONGO_INITDB_DATABASE: ${MONGO_DB_NAME:-lmc_db}
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks: [lmc]
+    # No `ports:` — reachable only from the other containers, never the internet.
+    logging: &logging
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
   backend:
     build:
       context: ./backend
@@ -11,12 +36,14 @@ services:
       target: production
     container_name: lmc-backend
     restart: always
+    depends_on:
+      mongo:
+        condition: service_healthy
     environment:
       NODE_ENV: production
       BACKEND_PORT: 3000
       API_PREFIX: ${API_PREFIX:-api}
-      # Atlas SRV connection string — comes straight from .env.production.
-      MONGO_URI: ${MONGO_URI}
+      MONGO_URI: mongodb://${MONGO_ROOT_USER}:${MONGO_ROOT_PASSWORD}@mongo:27017/${MONGO_DB_NAME:-lmc_db}?authSource=admin
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       JWT_ACCESS_TTL: ${JWT_ACCESS_TTL:-15m}
@@ -25,6 +52,8 @@ services:
       THROTTLE_TTL: ${THROTTLE_TTL:-60}
       THROTTLE_LIMIT: ${THROTTLE_LIMIT:-120}
       AUTH_THROTTLE_LIMIT: ${AUTH_THROTTLE_LIMIT:-5}
+      # One proxy hop (the server's Nginx), so rate limiting sees the visitor IP.
+      TRUST_PROXY: 1
       STORAGE_DRIVER: local
       STORAGE_LOCAL_DIR: /app/uploads
       STORAGE_PUBLIC_BASE_URL: ${STORAGE_PUBLIC_BASE_URL}
@@ -34,39 +63,27 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       SMTP_FROM: ${SMTP_FROM:-}
-    volumes:
-      # Uploaded media lives on the VPS disk — Atlas does not store files.
-      - backend_uploads:/app/uploads
-    networks: [lmc]
-    # No `ports:` — only Nginx reaches it, over the internal network.
-    logging: &logging
-      driver: json-file
-      options: { max-size: "10m", max-file: "3" }
-
-  nginx:
-    image: nginx:1.27-alpine
-    container_name: lmc-nginx
-    restart: always
-    depends_on: [backend]
     ports:
-      - "80:80"
-      - "443:443"
+      # localhost only — the public internet reaches this through Nginx.
+      - "127.0.0.1:${BACKEND_HOST_PORT:-3001}:3000"
     volumes:
-      - ./deploy/nginx:/etc/nginx/conf.d:ro
-      - certbot_webroot:/var/www/certbot
-      - certbot_conf:/etc/letsencrypt:ro
+      # Uploaded media lives on the VPS disk, not in the database.
+      - backend_uploads:/app/uploads
     networks: [lmc]
     logging: *logging
 
-  certbot:
-    image: certbot/certbot
-    container_name: lmc-certbot
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: production
+    container_name: lmc-frontend
     restart: always
-    volumes:
-      - certbot_webroot:/var/www/certbot
-      - certbot_conf:/etc/letsencrypt
-    # Retry renewal twice a day; Let's Encrypt renews only within 30d of expiry.
-    entrypoint: /bin/sh -c 'trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done'
+    # No VITE_API_BASE_URL: site and API share an origin, so the built-in
+    # default of "/api" is correct and Nginx routes it to the backend.
+    ports:
+      - "127.0.0.1:${FRONTEND_HOST_PORT:-8080}:80"
+    networks: [lmc]
     logging: *logging
 
 networks:
@@ -74,6 +91,5 @@ networks:
     driver: bridge
 
 volumes:
+  mongo_data:
   backend_uploads:
-  certbot_webroot:
-  certbot_conf:
