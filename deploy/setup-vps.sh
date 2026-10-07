@@ -32,7 +32,21 @@ else
     -e "s|lmc\.example\.com|$DOMAIN|g" \
     .env.production.example > .env.production
   chmod 600 .env.production
-  echo "    !! edit SEED_ADMIN_EMAIL and SEED_ADMIN_PASSWORD in .env.production, then re-run"
+  echo
+  echo "    Stopping here: the admin account is created once, from these two values,"
+  echo "    and seeding it with the placeholders would lock you out of your own dashboard."
+  echo
+  echo "      nano $(pwd)/.env.production      # set SEED_ADMIN_EMAIL and SEED_ADMIN_PASSWORD"
+  echo "      bash deploy/setup-vps.sh $DOMAIN $EMAIL   # then run this again"
+  echo
+  exit 0
+fi
+
+if grep -q "CHANGE_ME" .env.production; then
+  echo "error: .env.production still contains CHANGE_ME placeholders:" >&2
+  grep -n "CHANGE_ME" .env.production >&2
+  echo "       Fill them in and re-run." >&2
+  exit 1
 fi
 
 BACKEND_PORT_HOST="$(grep -E '^BACKEND_HOST_PORT=' .env.production | cut -d= -f2)"

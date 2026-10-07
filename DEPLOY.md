@@ -146,3 +146,22 @@ docker run --rm -v lmc_backend_uploads:/data -v "$PWD":/backup alpine \
 
 **البيانات والملفات المرفوعة موجودة بمكان واحد فقط — على الـ VPS.** خُذ نسخة
 احتياطية دورية.
+
+## تغيير حساب المدير
+
+حساب المدير بينزرع **مرة وحدة بس** — الزرع بيتخطّى الخطوة إذا في حساب موجود،
+فتعديل `SEED_ADMIN_*` لحاله ما بيغيّر كلمة السر. لتعيين حساب جديد:
+
+```bash
+cd /opt/lmc
+nano .env.production          # SEED_ADMIN_EMAIL و SEED_ADMIN_PASSWORD
+
+set -a; . ./.env.production; set +a
+docker compose -f docker-compose.prod.yml --env-file .env.production up -d
+docker compose -f docker-compose.prod.yml --env-file .env.production exec -T mongo \
+  mongosh "mongodb://$MONGO_ROOT_USER:$MONGO_ROOT_PASSWORD@localhost:27017/$MONGO_DB_NAME?authSource=admin" \
+  --quiet --eval 'db.adminusers.deleteMany({})'
+docker compose -f docker-compose.prod.yml --env-file .env.production exec -T backend node dist/database/seed.js
+```
+
+بيحذف حسابات المدير بس — محتوى الموقع ما بينمس.
