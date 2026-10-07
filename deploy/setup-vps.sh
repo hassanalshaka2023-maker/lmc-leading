@@ -38,9 +38,26 @@ fi
 BACKEND_PORT_HOST="$(grep -E '^BACKEND_HOST_PORT=' .env.production | cut -d= -f2)"
 FRONTEND_PORT_HOST="$(grep -E '^FRONTEND_HOST_PORT=' .env.production | cut -d= -f2)"
 BACKEND_PORT_HOST="${BACKEND_PORT_HOST:-3001}"
-FRONTEND_PORT_HOST="${FRONTEND_PORT_HOST:-8080}"
+FRONTEND_PORT_HOST="${FRONTEND_PORT_HOST:-8090}"
 
-# --- 2. containers -----------------------------------------------------------
+# --- 2. ports ----------------------------------------------------------------
+# A busy port is the quiet failure mode here: Nginx happily proxies to whatever
+# else is listening (a mail dashboard, another app) and the site never appears.
+for pair in "backend:$BACKEND_PORT_HOST" "frontend:$FRONTEND_PORT_HOST"; do
+  name="${pair%%:*}"; port="${pair##*:}"
+  if ss -ltn "sport = :$port" 2>/dev/null | grep -q LISTEN; then
+    owner="$(docker ps --filter "publish=$port" --format '{{.Names}}' | head -1)"
+    case "$owner" in
+      lmc-*) : ;;  # our own container from an earlier run
+      *)
+        echo "error: port $port ($name) is already in use${owner:+ by $owner}." >&2
+        echo "       Pick a free one, set ${name^^}_HOST_PORT in .env.production, and re-run." >&2
+        exit 1 ;;
+    esac
+  fi
+done
+
+# --- 3. containers -----------------------------------------------------------
 echo "==> building and starting the containers (this takes a few minutes)"
 $COMPOSE up -d --build
 
@@ -58,11 +75,19 @@ for i in $(seq 1 60); do
   sleep 5
 done
 
-# --- 3. seed the database ----------------------------------------------------
+echo "==> checking the site container"
+if ! curl -fsS "http://127.0.0.1:$FRONTEND_PORT_HOST/" >/dev/null 2>&1; then
+  echo "    the site is not answering on 127.0.0.1:$FRONTEND_PORT_HOST. Logs:" >&2
+  $COMPOSE logs --tail 30 frontend >&2
+  exit 1
+fi
+echo "    site is up"
+
+# --- 4. seed the database ----------------------------------------------------
 echo "==> seeding the database (safe to repeat)"
 $COMPOSE exec -T backend node dist/database/seed.js
 
-# --- 4. Nginx server block ---------------------------------------------------
+# --- 5. Nginx server block ---------------------------------------------------
 # Added alongside the server's existing sites; none of them are touched.
 SITE_AVAILABLE="/etc/nginx/sites-available/lmc"
 if [ -f "$SITE_AVAILABLE" ]; then
@@ -71,7 +96,7 @@ else
   echo "==> installing the Nginx server block for $DOMAIN"
   sed -e "s/DOMAIN_PLACEHOLDER/$DOMAIN/g" \
       -e "s|http://127.0.0.1:3001|http://127.0.0.1:$BACKEND_PORT_HOST|g" \
-      -e "s|http://127.0.0.1:8080|http://127.0.0.1:$FRONTEND_PORT_HOST|g" \
+      -e "s|http://127.0.0.1:8090|http://127.0.0.1:$FRONTEND_PORT_HOST|g" \
       deploy/nginx/lmc.conf > "$SITE_AVAILABLE"
   ln -sf "$SITE_AVAILABLE" /etc/nginx/sites-enabled/lmc
 fi
@@ -79,7 +104,7 @@ nginx -t
 systemctl reload nginx
 echo "    http://$DOMAIN should now serve the site"
 
-# --- 5. certificate ----------------------------------------------------------
+# --- 6. certificate ----------------------------------------------------------
 if [ -d "/etc/letsencrypt/live/$DOMAIN" ]; then
   echo "==> certificate for $DOMAIN already exists, skipping"
 elif command -v certbot >/dev/null 2>&1; then
